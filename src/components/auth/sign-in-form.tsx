@@ -3,7 +3,6 @@
 import * as React from 'react';
 import Image from 'next/image';
 import RouterLink from 'next/link';
-import { useRouter } from 'next/navigation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
@@ -15,15 +14,16 @@ import OutlinedInput from '@mui/material/OutlinedInput';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { Box } from '@mui/system';
+import { Checks } from '@phosphor-icons/react';
 import { Eye as EyeIcon } from '@phosphor-icons/react/dist/ssr/Eye';
 import { EyeSlash as EyeSlashIcon } from '@phosphor-icons/react/dist/ssr/EyeSlash';
 import { Controller, useForm } from 'react-hook-form';
 import { z as zod } from 'zod';
 import { paths } from '@/paths';
-import { authClient } from '@/lib/auth/client';
-import { useUser } from '@/hooks/use-user';
+import { useAuth } from '@/hooks/use-auth';
 import imageSrc from '@/styles/assets/b23ee7d88ea097cf5aaddf4b5cdded51.png';
-import { Checks } from '@phosphor-icons/react';
+import {useRouter} from 'next/navigation';
+import { PolicyAgreementModal } from '@/utils/modal-terms-component';
 
 const schema = zod.object({
   email: zod.string().min(1, { message: 'Email is required' }).email(),
@@ -35,38 +35,23 @@ type Values = zod.infer<typeof schema>;
 const defaultValues = { email: '', password: '' } satisfies Values;
 
 export function SignInForm(): React.JSX.Element {
+  const { login, loading, error, showModal, agreeToPolicies } = useAuth();
+  const [showPassword, setShowPassword] = React.useState<boolean>(false);
   const router = useRouter();
-  const { checkSession } = useUser();
-  const [showPassword, setShowPassword] = React.useState<boolean>();
-  const [isPending, setIsPending] = React.useState<boolean>(false);
 
   const {
     control,
     handleSubmit,
-    setError,
     formState: { errors },
   } = useForm<Values>({ defaultValues, resolver: zodResolver(schema) });
 
-  const onSubmit = React.useCallback(
-    async (values: Values): Promise<void> => {
-      setIsPending(true);
-
-      const { error } = await authClient.signInWithPassword(values);
-
-      if (error) {
-        setError('root', { type: 'server', message: error });
-        setIsPending(false);
-        return;
-      }
-      await checkSession?.();
-      router.refresh();
-    },
-    [checkSession, router, setError]
-  );
+  const onSubmit = (values: Values): void => {
+    void login(values);
+  };
 
   return (
     <Stack spacing={6}>
-      <Stack spacing={1} sx={{display: 'flex', alignItems: 'center'}}>
+      <Stack spacing={1} sx={{ display: 'flex', alignItems: 'center' }}>
         <Image src={imageSrc} alt="logo" width={381} height={160} />
         <Typography variant="h3">PARTNER PORTAL</Typography>
       </Stack>
@@ -78,7 +63,13 @@ export function SignInForm(): React.JSX.Element {
             render={({ field }) => (
               <FormControl error={Boolean(errors.email)}>
                 <InputLabel>Email address</InputLabel>
-                <OutlinedInput sx={{backgroundColor: 'white', boxShadow: '0px 4px 21px rgba(0, 0, 0, 0.3)'}} {...field} label="Email address" type="email" endAdornment={<Checks />}/>
+                <OutlinedInput
+                  sx={{ backgroundColor: 'white', boxShadow: '0px 4px 21px rgba(0, 0, 0, 0.3)' }}
+                  {...field}
+                  label="Email address"
+                  type="email"
+                  endAdornment={<Checks />}
+                />
                 {errors.email ? <FormHelperText>{errors.email.message}</FormHelperText> : null}
               </FormControl>
             )}
@@ -91,7 +82,7 @@ export function SignInForm(): React.JSX.Element {
                 <InputLabel>Password</InputLabel>
                 <OutlinedInput
                   {...field}
-                  sx={{backgroundColor: 'white', boxShadow: '0px 4px 21px rgba(0, 0, 0, 0.3)'}}
+                  sx={{ backgroundColor: 'white', boxShadow: '0px 4px 21px rgba(0, 0, 0, 0.3)' }}
                   endAdornment={
                     showPassword ? (
                       <EyeIcon
@@ -123,7 +114,7 @@ export function SignInForm(): React.JSX.Element {
               Forgot password?
             </Link>
           </div>
-          {errors.root ? <Alert color="error">{errors.root.message}</Alert> : null}
+          {error ? <Alert color="error">{error}</Alert> : null}
           <Box
             sx={{
               display: 'flex',
@@ -131,15 +122,27 @@ export function SignInForm(): React.JSX.Element {
               gap: '30px',
             }}
           >
-            <Button disabled={isPending} type="submit" variant="contained" sx={{backgroundColor: '#2d9f9f', '&:hover' : {backgroundColor: '#2d9f9f'}}} href={paths.auth.signUp}>
+            <Button
+              disabled={loading}
+              type="submit"
+              variant="contained"
+              sx={{ backgroundColor: '#2d9f9f', '&:hover': { backgroundColor: '#2d9f9f' } }}
+              onClick={() => { router.push(paths.auth.signUp); }}
+            >
               Sign up
             </Button>
-            <Button disabled={isPending} type="submit" variant="contained" sx={{backgroundColor: '#BBD260', '&:hover' : {backgroundColor: '#BBD260'}}}>
+            <Button
+              disabled={loading}
+              type="submit"
+              variant="contained"
+              sx={{ backgroundColor: '#BBD260', '&:hover': { backgroundColor: '#BBD260' } }}
+            >
               Sign in
             </Button>
           </Box>
         </Stack>
       </form>
+      <PolicyAgreementModal open={showModal} onClose={() => {}} onAgree={agreeToPolicies} />
     </Stack>
   );
 }
